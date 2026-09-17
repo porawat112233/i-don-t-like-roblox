@@ -1,0 +1,142 @@
+-- Roblox Speed, Fly, Jump & Teleport GUI Script (Thai Language)
+-- เมนูภาษาไทย พร้อมระบบเลื่อนขึ้น-ลง (ScrollingFrame) ไม่ล้นหน้าจอ
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Variables
+local flying = false
+local infJump = false
+local flySpeed = 50
+local bodyVelocity, bodyGyro
+local dir = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
+
+local savedPos1 = nil
+local savedPos2 = nil
+
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NenSparkGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Outer Frame (กรอบหลักขนาดพอดีจอ)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 220, 0, 260)
+MainFrame.Position = UDim2.new(0.5, -110, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Title Header
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Title.Text = "เณรสปาร์คหำน้อย"
+Title.TextColor3 = Color3.fromRGB(255, 215, 0)
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+-- Scrolling Frame (พื้นที่รูดขึ้น-ลง)
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, 0, 1, -30)
+ScrollFrame.Position = UDim2.new(0, 0, 0, 30)
+ScrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 480)
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.Parent = MainFrame
+
+-- Helper UI Functions
+local function createCategoryLabel(text, yPos)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.9, 0, 0, 20)
+    lbl.Position = UDim2.new(0.05, 0, 0, yPos)
+    lbl.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    lbl.Text = "--- " .. text .. " ---"
+    lbl.TextColor3 = Color3.fromRGB(0, 220, 255)
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.SourceSansBold
+    lbl.Parent = ScrollFrame
+    return lbl
+end
+
+local function createButton(text, yPos, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 26)
+    btn.Position = UDim2.new(0.05, 0, 0, yPos)
+    btn.BackgroundColor3 = color or Color3.fromRGB(50, 50, 50)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSans
+    btn.Parent = ScrollFrame
+    return btn
+end
+
+local function createTextBox(text, yPos)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.9, 0, 0, 26)
+    box.Position = UDim2.new(0.05, 0, 0, yPos)
+    box.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    box.Text = text
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.Font = Enum.Font.SourceSans
+    box.Parent = ScrollFrame
+    return box
+end
+
+-- =========================================
+-- หมวดหมู่ที่ 1: การเคลื่อนที่ (MOVEMENT)
+-- =========================================
+createCategoryLabel("การเคลื่อนที่", 5)
+
+local FlyBtn = createButton("บิน: ปิด", 28, Color3.fromRGB(180, 40, 40))
+local FlySpeedBox = createTextBox("ความเร็วบิน: 50", 57)
+local WalkSpeedBox = createTextBox("ความเร็วเดิน: 16", 86)
+local JumpPowerBox = createTextBox("แรงกระโดด: 50", 115)
+local InfJumpBtn = createButton("กระโดดไม่จำกัด: ปิด", 144, Color3.fromRGB(180, 40, 40))
+
+-- =========================================
+-- หมวดหมู่ที่ 2: วาร์ปขึ้นด้านบน (TELEPORT UP)
+-- =========================================
+createCategoryLabel("วาร์ปขึ้นด้านบน", 178)
+
+local TPUpBox = createTextBox("ระยะความสูง: 50", 201)
+local TPUpBtn = createButton("วาร์ปขึ้นข้างบน", 230, Color3.fromRGB(140, 60, 180))
+
+-- =========================================
+-- หมวดหมู่ที่ 3: วาร์ปตำแหน่ง (TELEPORT POSITION)
+-- =========================================
+createCategoryLabel("วาร์ปตามตำแหน่ง", 264)
+
+local Save1Btn = createButton("บันทึกจุดที่ 1", 287, Color3.fromRGB(0, 120, 180))
+local TP1Btn = createButton("วาร์ปไปจุดที่ 1", 316, Color3.fromRGB(0, 150, 80))
+
+local Save2Btn = createButton("บันทึกจุดที่ 2", 348, Color3.fromRGB(0, 120, 180))
+local TP2Btn = createButton("วาร์ปไปจุดที่ 2", 377, Color3.fromRGB(0, 150, 80))
+
+local CustomTPBox = createTextBox("ใส่พิกัด (X, Y, Z)", 409)
+local CustomTPBtn = createButton("วาร์ปไปตามพิกัด", 438, Color3.fromRGB(180, 110, 0))
+
+-- ปุ่มเปิด/ปิด เมนูหลัก
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 110, 0, 30)
+OpenBtn.Position = UDim2.new(0, 10, 0, 10)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+OpenBtn.Text = "เณรสปาร์คหำน้อย"
+OpenBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.Parent = ScreenGui
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- =========================================
+-- ระบบการทำงาน (LOGIC FUNCTIONS)
+-- =========================================
+
+local function telepo
